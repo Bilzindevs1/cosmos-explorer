@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Cosmos Explorer — an interactive gravitational particle simulation seeded by the universe." />
+  <meta property="og:title" content="Cosmos Explorer" />
+  <meta property="og:description" content="Explore procedurally generated gravitational universes. Every seed is a new cosmos." />
+  <meta property="og:type" content="website" />
+  <title>Cosmos Explorer</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="style.css" />
+
+  <style>
+    /* ─── Reset & base ─── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: var(--color-bg);
+      color: var(--color-text-primary);
+      font-family: 'Exo 2', sans-serif;
+    }
+
+    /* ─── Canvas ─── */
+    #cosmos-canvas {
+      display: block;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+      touch-action: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    #cosmos-canvas:active {
+      cursor: grabbing;
+    }
+
+    /* ─── HUD overlay ─── */
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-rows: auto 1fr auto;
+      gap: var(--space-md);
+      padding: var(--space-lg);
+      transition: opacity 600ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    #hud.hud-hidden {
+      opacity: 0;
+    }
+
+    /* ─── Top-left: title + stats ─── */
+    #hud-top-left {
+      grid-column: 1;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      pointer-events: none;
+    }
+
+    .cosmos-title {
+      font-family: 'Exo 2', sans-serif;
+      font-weight: 700;
+      font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-cyan);
+      text-shadow:
+        0 0 12px rgba(0, 238, 255, 0.7),
+        0 0 40px rgba(0, 238, 255, 0.25);
+      line-height: 1.1;
+    }
+
+    .cosmos-title span {
+      color: var(--color-magenta);
+      text-shadow:
+        0 0 12px rgba(255, 0, 204, 0.7),
+        0 0 40px rgba(255, 0, 204, 0.25);
+    }
+
+    .hud-stats {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .stat-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: clamp(0.65rem, 1.2vw, 0.8rem);
+      color: var(--color-text-muted);
+      line-height: 1.4;
+    }
+
+    .stat-label {
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-text-muted);
+      min-width: 3.5ch;
+    }
+
+    .stat-value {
+      color: var(--color-text-primary);
+      font-weight: 400;
+    }
+
+    .stat-value--highlight {
+      color: var(--color-cyan);
+      text-shadow: 0 0 8px rgba(0, 238, 255, 0.5);
+    }
+
+    /* ─── Top-right: controls ─── */
+    #hud-top-right {
+      grid-column: 2;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      align-items: flex-end;
+      pointer-events: all;
+    }
+
+    .hud-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-sm);
+      padding: var(--space-sm) var(--space-md);
+      background: var(--color-btn-bg);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      color: var(--color-text-primary);
+      font-family: 'Exo 2', sans-serif;
+      font-size: clamp(0.7rem, 1.3vw, 0.85rem);
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      cursor: pointer;
+      backdrop-filter: blur(12px) saturate(1.4);
+      -webkit-backdrop-filter: blur(12px) saturate(1.4);
+      transition:
+        background 180ms ease-out,
+        border-color 180ms ease-out,
+        box-shadow 180ms ease-out,
+        transform 160ms ease-out;
+      white-space: nowrap;
+      user-select: none;
+      -webkit-user-select: none;
+      outline: none;
+    }
+
+    .hud-btn:hover {
+      background: var(--color-btn-hover);
+      border-color: var(--color-cyan);
+      box-shadow:
+        0 0 12px rgba(0, 238, 255, 0.2),
+        inset 0 1px 0 rgba(0, 238, 255, 0.1);
+    }
+
+    .hud-btn:focus-visible {
+      outline: 2px solid var(--color-cyan);
+      outline-offset: 2px;
+    }
+
+    .hud-btn:active {
+      transform: scale(0.97);
+      background: var(--color-btn-active);
+    }
+
+    .hud-btn--primary {
+      border-color: rgba(0, 238, 255, 0.35);
+      color: var(--color-cyan);
+    }
+
+    .hud-btn--primary:hover {
+      box-shadow:
+        0 0 18px rgba(0, 238, 255, 0.3),
+        0 0 40px rgba(0, 238, 255, 0.1),
+        inset 0 1px 0 rgba(0, 238, 255, 0.15);
+    }
+
+    .hud-btn--secondary {
+      border-color: rgba(255, 0, 204, 0.28);
+      color: var(--color-magenta);
+    }
+
+    .hud-btn--secondary:hover {
+      border-color: var(--color-magenta);
+      background: rgba(255, 0, 204, 0.10);
+      box-shadow:
+        0 0 18px rgba(255, 0, 204, 0.25),
+        inset 0 1px 0 rgba(255, 0, 204, 0.1);
+    }
+
+    .btn-icon {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    /* ─── Seed display (bottom-left) ─── */
+    #hud-bottom-left {
+      grid-column: 1;
+      grid-row: 3;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+      pointer-events: none;
+    }
+
+    .seed-display {
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      padding: var(--space-xs) var(--space-sm);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      width: fit-content;
+    }
+
+    .seed-label {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+    }
+
+    .seed-value {
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--color-amber);
+      text-shadow: 0 0 8px rgba(255, 170, 0, 0.4);
+      letter-spacing: 0.04em;
+    }
+
+    /* ─── Touch hint tooltip (bottom-right) ─── */
+    #touch-hint {
+      grid-column: 2;
+      grid-row: 3;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: var(--space-xs);
+      pointer-events: none;
+      transition: opacity 800ms ease-out;
+    }
+
+    #touch-hint.hint-hidden {
+      opacity: 0;
+    }
+
+    .hint-pill {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 999px;
+      padding: var(--space-xs) var(--space-md);
+      font-family: 'Exo 2', sans-serif;
+      font-size: clamp(0.6rem, 1.1vw, 0.72rem);
+      color: var(--color-text-muted);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .hint-icon {
+      font-size: 0.9em;
+      opacity: 0.75;
+    }
+
+    /* Show touch hints only on touch devices initially */
+    @media (hover: hover) and (pointer: fine) {
+      .hint-pill--touch {
+        display: none;
+      }
+    }
+
+    @media (hover: none) and (pointer: coarse) {
+      .hint-pill--mouse {
+        display: none;
+      }
+    }
+
+    /* ─── Share toast notification ─── */
+    #share-toast {
+      position: fixed;
+      bottom: var(--space-xl);
+      left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: var(--color-surface);
+      border: 1px solid rgba(0, 238, 255, 0.35);
+      border-radius: var(--radius-md);
+      padding: var(--space-sm) var(--space-lg);
+      font-family: 'Exo 2', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--color-cyan);
+      text-shadow: 0 0 8px rgba(0, 238, 255, 0.4);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow:
+        0 0 24px rgba(0, 238, 255, 0.15),
+        0 8px 32px rgba(0, 0, 0, 0.6);
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition:
+        opacity 250ms cubic-bezier(0.23, 1, 0.32, 1),
+        transform 250ms cubic-bezier(0.23, 1, 0.32, 1);
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+
+    #share-toast.toast-visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* ─── Universe transition overlay ─── */
+    #transition-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(0, 238, 255, 0.06) 0%, rgba(0,0,0,0) 70%),
+                  #000000;
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 600ms ease-out;
+    }
+
+    #transition-overlay.flash {
+      opacity: 1;
+    }
+
+    /* ─── Responsive adjustments ─── */
+    @media (max-width: 480px) {
+      #hud {
+        padding: var(--space-md);
+        gap: var(--space-sm);
+      }
+
+      .cosmos-title {
+        font-size: 1rem;
+        letter-spacing: 0.12em;
+      }
+
+      .hud-btn {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: 0.7rem;
+      }
+
+      .btn-label {
+        display: none;
+      }
+
+      .hud-btn .btn-icon {
+        width: 18px;
+        height: 18px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      #hud,
+      #share-toast,
+      #transition-overlay,
+      .hud-btn {
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Full-viewport simulation canvas -->
+  <canvas
+    id="cosmos-canvas"
+    role="img"
+    aria-label="Interactive gravitational particle simulation — drag to orbit, scroll to zoom"
+  ></canvas>
+
+  <!-- Universe transition flash overlay -->
+  <div id="transition-overlay" aria-hidden="true"></div>
+
+  <!-- HUD overlay -->
+  <div id="hud" role="complementary" aria-label="Cosmos Explorer controls and statistics">
+
+    <!-- Top-left: branding + live stats -->
+    <div id="hud-top-left">
+      <div class="cosmos-title" aria-label="Cosmos Explorer">
+        COSMOS <span>EXPLORER</span>
+      </div>
+      <div class="hud-stats" aria-live="polite" aria-atomic="false">
+        <div class="stat-row">
+          <span class="stat-label">FPS</span>
+          <span class="stat-value stat-value--highlight" id="fps-counter" aria-label="Frames per second">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">ATT</span>
+          <span class="stat-value" id="attractor-count" aria-label="Attractor count">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">PTC</span>
+          <span class="stat-value" id="particle-count" aria-label="Particle count">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top-right: action buttons -->
+    <div id="hud-top-right">
+      <button
+        id="btn-new-universe"
+        class="hud-btn hud-btn--primary"
+        type="button"
+        title="Generate a new random universe"
+        aria-label="New Universe — generate a new random gravitational simulation"
+      >
+        <!-- Starburst / explode icon -->
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        </svg>
+        <span class="btn-label">New Universe</span>
+      </button>
+
+      <button
+        id="btn-share"
+        class="hud-btn hud-btn--secondary"
+        type="button"
+        title="Copy shareable link to this universe seed"
+        aria-label="Share — copy link to this universe's seed"
+      >
+        <!-- Share / link icon -->
+        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="18" cy="5" r="3"/>
+          <circle cx="6" cy="12" r="3"/>
+          <circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+        <span class="btn-label">Share</span>
+      </button>
+    </div>
+
+    <!-- Bottom-left: seed display -->
+    <div id="hud-bottom-left">
+      <div class="seed-display" role="status" aria-label="Current universe seed">
+        <span class="seed-label">Seed</span>
+        <span class="seed-value" id="seed-display">—</span>
+      </div>
+    </div>
+
+    <!-- Bottom-right: interaction hint tooltip -->
+    <div id="touch-hint" aria-hidden="true">
+      <div class="hint-pill hint-pill--mouse">
+        <span class="hint-icon">🖱</span>
+        Drag to orbit · Scroll to zoom
+      </div>
+      <div class="hint-pill hint-pill--touch">
+        <span class="hint-icon">👆</span>
+        Drag to orbit · Pinch to zoom
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Share feedback toast -->
+  <div
+    id="share-toast"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    Link copied to clipboard ✓
+  </div>
+
+  <script type="module">
+    // ─────────────────────────────────────────────────────────────────────────
+    // Seed bootstrap — read from URL hash before main.js loads
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Parses an unsigned 32-bit integer seed from the URL hash.
+     * Accepts: #seed=<number>  or  #<number>
+     * Returns null if no valid seed is found.
+     * @returns {number|null}
+     */
+    function readSeedFromHash() {
+      const hash = window.location.hash.replace(/^#/, '').trim();
+      if (!hash) return null;
+
+      // Support ?seed=NNN or just #NNN
+      const match = hash.match(/(?:seed=)?(\d{1,10})/);
+      if (!match) return null;
+
+      const parsed = parseInt(match[1], 10);
+      if (Number.isNaN(parsed) || parsed < 0 || parsed > 0xFFFFFFFF) return null;
+      return parsed >>> 0;
+    }
+
+    // Expose seed globally before module loads so main.js can pick it up
+    const initialSeed = readSeedFromHash();
+    if (initialSeed !== null) {
+      window.__COSMOS_SEED__ = initialSeed;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Touch hint auto-dismiss
+    // ─────────────────────────────────────────────────────────────────────────
+    const touchHint = document.getElementById('touch-hint');
+
+    function dismissHint() {
+      touchHint.classList.add('hint-hidden');
+    }
+
+    // Dismiss hint after first interaction or after 5 seconds
+    const hintTimer = setTimeout(dismissHint, 5000);
+
+    function onFirstInteraction() {
+      clearTimeout(hintTimer);
+      dismissHint();
+      window.removeEventListener('pointerdown', onFirstInteraction);
+      window.removeEventListener('wheel', onFirstInteraction);
+    }
+
+    window.addEventListener('pointerdown', onFirstInteraction, { once: true, passive: true });
+    window.addEventListener('wheel', onFirstInteraction, { once: true, passive: true });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Share button — clipboard + toast
+    // ─────────────────────────────────────────────────────────────────────────
+    const btnShare = document.getElementById('btn-share');
+    const shareToast = document.getElementById('share-toast');
+    let toastTimeout = null;
+
+    btnShare.addEventListener('click', async () => {
+      const url = window.location.href;
+
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+        } else {
+          // Fallback for non-secure contexts
+          const el = document.createElement('textarea');
+          el.value = url;
+          el.setAttribute('readonly', '');
+          el.style.cssText = 'position:absolute;left:-9999px;';
+          document.body.appendChild(el);
+          el.select();
+          document.execCommand('copy');
+          document.body.removeChild(el);
+        }
+      } catch {
+        // Silently fail — toast still shows for UX
+      }
+
+      // Show toast
+      shareToast.classList.add('toast-visible');
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        shareToast.classList.remove('toast-visible');
+      }, 2400);
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Transition overlay helper (exposed for main.js)
+    // ─────────────────────────────────────────────────────────────────────────
+    const overlay = document.getElementById('transition-overlay');
+
+    window.__COSMOS_FLASH__ = function flashTransition(duration = 600) {
+      overlay.classList.add('flash');
+      setTimeout(() => overlay.classList.remove('flash'), duration);
+    };
+  </script>
+
+  <!-- Main simulation module -->
+  <script type="module" src="main.js"></script>
+
+</body>
+</html>
